@@ -146,21 +146,24 @@ fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let stream_file = args.contains(&String::from("-s"));
 
-    let mut cache;
-    let contains_c = args.contains(&String::from("-c"));
+    let mut cache = None;
 
-    if contains_c {
-        // get cache_capacity
-            //let cache_capacity = // split on equal sign, skip first element, parse the second one to get the capacity
-        let cache_capacity = 
-        cache = Some(Arc::new(Mutex::new(Cache::new(cache_capacity))));
-    } else {
-        cache = None; // does this work correctly?
+    for arg in &args {
+        if arg.starts_with("-c=") {
+            let capacity_str = &arg[3..]; // skip the "-c=" part
+            // println!("{}", capacity_str);
+            match capacity_str.parse::<usize>() {
+                Ok(capacity) => {
+                    cache = Some(Arc::new(Mutex::new(Cache::new(capacity))));
+                }
+                Err(e) => {
+                    eprintln!("Error: Failed to parse cache capacity: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            break;
+        }
     }
-    // if -c= then get cache capacitty and then make cache what it is rn
-
-    // else cache is none and we move on 
-
 
     // accept connections and process them serially
     for stream in listener.incoming() {
