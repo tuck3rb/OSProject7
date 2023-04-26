@@ -97,16 +97,56 @@ fn handle_client(mut stream: TcpStream, total_requests: Arc<Mutex<u32>>, valid_r
                 }
                 let mut valid_requests = valid_requests.lock().unwrap();
                 *valid_requests += 1;
-            } else if let Some(cache) = cache {
+            } else if let Some(cache) = &cache {
                 // caching things
 
+                let mut cache = cache.lock().unwrap();
+
                 // 0. bump count of request in request counts
+                let path_string = path.to_string();
+                let request_count = cache.request_counts.entry(path_string.clone()).or_insert(0);
+                *request_count += 1;
                 // 1. check to see if requested file is in map
                 // 2. if yes, send whats in the map over the socket
-                // 3. else, load it from disk and into a string (SEND IT), see 
-                // 4. if cache is below capacity add it to cache (map)
-                // 5. compare counts of everyone in cache and compare it to the one that just came in, kick out the one with minimum count
-                // 6. add new request to cache
+                if cache.map.contains_key(&path_string) {
+                    let contents = cache.map.get(&path_string).unwrap();
+                    response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: {}\r\n\r\n<html>\r\n<body>\r\n<h1>Message received</h1>\r\nRequested file: {}<br>\r\n</body>\r\n</html>\r\n",
+                        contents.len(), contents
+                    );
+                }
+                // 3. else, load it from disk and into a string (SEND IT)
+                else {
+                    let contents = std::fs::read_to_string(&candidate_path).unwrap();
+                    response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: {}\r\n\r\n<html>\r\n<body>\r\n<h1>Message received</h1>\r\nRequested file: {}<br>\r\n</body>\r\n</html>\r\n",
+                        contents.len(), contents
+                    );
+
+                    // 4. if cache is below capacity add it to cache (map)
+                    if cache.map.len() < cache.capacity {
+                        cache.map.insert(path_string.clone(), contents.clone());
+                    }                 
+                    // 5. compare counts of everyone in cache and compare it to the one that just came in
+                    else {
+                        let min_key = cache
+                            .request_counts
+                            .iter()
+                            .min_by_key(|(_, &count)| count)
+                            .map(|(key, _)| key.clone())
+                            .unwrap();
+                        
+                        // 6. kick out the one with minimum count, add new request to cache
+                        if request_count > cache.request_counts.get(&min_key) {
+                            cache.map.remove(&min_key);
+                            cache.request_counts.remove(&min_key);
+                            cache.map.insert(path_string.clone(), contents.clone());
+                        }
+                    }
+                }
+
+                let mut valid_requests = valid_requests.lock().unwrap();
+                *valid_requests += 1;
 
             } else {
                 let contents = std::fs::read_to_string(&candidate_path).unwrap();
