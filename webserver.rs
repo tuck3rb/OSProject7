@@ -139,8 +139,6 @@ fn main() -> std::io::Result<()> {
 
     let total_requests = Arc::new(Mutex::new(0));
     let valid_requests = Arc::new(Mutex::new(0));
-    // cache thing
-    //let cache = Arc::new(Mutex::new(HashMap::new()));
     
 
     let listener = TcpListener::bind("127.0.0.1:8888")?;
@@ -148,12 +146,19 @@ fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let stream_file = args.contains(&String::from("-s"));
 
-    // when getting cache capacity, create boolean that determines whether or not we've done a -c=...
-    //let cache_capacity = // split on equal sign, skip first element, parse the second one to get the capacity
-    let cache = Some(Arc::new(Mutex::new(Cache::new(cache_capacity))));
-    // make it do None if we do not have a -c=...
+    let mut cache;
+    let contains_c = args.contains(&String::from("-c"));
 
+    if contains_c {
+        // get cache_capacity
+            //let cache_capacity = // split on equal sign, skip first element, parse the second one to get the capacity
+        let cache_capacity = 
+        cache = Some(Arc::new(Mutex::new(Cache::new(cache_capacity))));
+    } else {
+        cache = None; // does this work correctly?
+    }
     // if -c= then get cache capacitty and then make cache what it is rn
+
     // else cache is none and we move on 
 
 
