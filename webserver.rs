@@ -104,8 +104,13 @@ fn handle_client(mut stream: TcpStream, total_requests: Arc<Mutex<u32>>, valid_r
 
                 // 0. bump count of request in request counts
                 let path_string = path.to_string();
-                let request_count = cache.request_counts.entry(path_string.clone()).or_insert(0);
-                *request_count += 1;
+                // let request_count = cache.request_counts.entry(path_string.clone()).or_insert(0);
+                // *request_count += 1;
+                let request_count = {
+                    let request_count = cache.request_counts.entry(path_string.clone()).or_insert(0);
+                    *request_count += 1;
+                    *request_count
+                };
                 // 1. check to see if requested file is in map
                 // 2. if yes, send whats in the map over the socket
                 if cache.map.contains_key(&path_string) {
@@ -128,16 +133,17 @@ fn handle_client(mut stream: TcpStream, total_requests: Arc<Mutex<u32>>, valid_r
                         cache.map.insert(path_string.clone(), contents.clone());
                     }                 
                     // 5. compare counts of everyone in cache and compare it to the one that just came in
+                    // Source: https://dhghomon.github.io/easy_rust/Chapter_35.html
                     else {
-                        let min_key = cache
+                        let (min_key, min_count) = cache
                             .request_counts
                             .iter()
                             .min_by_key(|(_, &count)| count)
-                            .map(|(key, _)| key.clone())
+                            .map(|(key, &count)| (key.clone(), count))
                             .unwrap();
-                        
+        
                         // 6. kick out the one with minimum count, add new request to cache
-                        if request_count > cache.request_counts.get(&min_key) {
+                        if request_count > min_count {
                             cache.map.remove(&min_key);
                             cache.request_counts.remove(&min_key);
                             cache.map.insert(path_string.clone(), contents.clone());
